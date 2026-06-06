@@ -9,7 +9,6 @@ const STATUS_OPTIONS = [
   { value: "rupture", label: "Rupture" },
 ];
 
-/* ───── Upload image to Supabase Storage ───── */
 async function uploadImage(file) {
   const ext = file.name.split(".").pop();
   const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
@@ -19,7 +18,7 @@ async function uploadImage(file) {
   return data.publicUrl;
 }
 
-/* ───── Components ───── */
+/* ───── Small Components ───── */
 const StatusBadge = ({ status }) => {
   const config = {
     dispo: { label: "En stock", bg: "#00D4AA" },
@@ -44,6 +43,18 @@ const Tag = ({ label }) => (
   }}>{label}</span>
 );
 
+const FilterPill = ({ label, active, onClick }) => (
+  <button onClick={onClick} style={{
+    padding: "6px 16px", borderRadius: "20px",
+    border: active ? "1.5px solid #6B8AF7" : "1.5px solid rgba(30,34,53,0.1)",
+    background: active ? "rgba(107,138,247,0.08)" : "transparent",
+    color: active ? "#6B8AF7" : "#8A8FA8",
+    fontSize: "13px", fontWeight: active ? 600 : 500, cursor: "pointer",
+    transition: "all 0.2s", whiteSpace: "nowrap",
+  }}>{label}</button>
+);
+
+/* ───── Material Card ───── */
 const MaterialCard = ({ material, isAdmin, onDelete }) => {
   const [hovered, setHovered] = useState(false);
   const hasHover = material.image_hover && material.image_hover !== "";
@@ -208,36 +219,22 @@ const AddMaterialModal = ({ onAdd, onClose, existingMaterials }) => {
     if (!form.name) return alert("Le nom est obligatoire");
     if (!imageFile) return alert("La photo principale est obligatoire");
     if (!form.category) return alert("La catégorie est obligatoire");
-
     setLoading(true);
     try {
       const imageUrl = await uploadImage(imageFile);
       let imageHoverUrl = "";
-      if (imageHoverFile) {
-        imageHoverUrl = await uploadImage(imageHoverFile);
-      }
-
+      if (imageHoverFile) imageHoverUrl = await uploadImage(imageHoverFile);
       const { data, error } = await supabase.from("materials").insert({
-        name: form.name,
-        image: imageUrl,
-        image_hover: imageHoverUrl,
-        category: form.category,
-        finish: form.finish,
-        transparency: form.transparency,
-        color: form.color,
-        stock: Number(form.stock),
-        status: form.status,
+        name: form.name, image: imageUrl, image_hover: imageHoverUrl,
+        category: form.category, finish: form.finish, transparency: form.transparency,
+        color: form.color, stock: Number(form.stock), status: form.status,
         supplier_url: form.supplier_url,
       }).select().single();
-
       if (error) throw error;
       onAdd(data);
       onClose();
-    } catch (err) {
-      alert("Erreur : " + err.message);
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { alert("Erreur : " + err.message); }
+    finally { setLoading(false); }
   };
 
   const ImageUpload = ({ preview, onClick, label, sub }) => (
@@ -298,42 +295,26 @@ const AddMaterialModal = ({ onAdd, onClose, existingMaterials }) => {
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
-          <div>
-            <label style={labelStyle}>Catégorie *</label>
-            <ComboInput value={form.category} onChange={v => setForm(f => ({ ...f, category: v }))}
-              options={existingCategories} placeholder="Choisir ou créer" />
-          </div>
-          <div>
-            <label style={labelStyle}>Coloris</label>
-            <ComboInput value={form.color} onChange={v => setForm(f => ({ ...f, color: v }))}
-              options={existingColors} placeholder="Choisir ou créer" />
-          </div>
+          <div><label style={labelStyle}>Catégorie *</label>
+            <ComboInput value={form.category} onChange={v => setForm(f => ({ ...f, category: v }))} options={existingCategories} placeholder="Choisir ou créer" /></div>
+          <div><label style={labelStyle}>Coloris</label>
+            <ComboInput value={form.color} onChange={v => setForm(f => ({ ...f, color: v }))} options={existingColors} placeholder="Choisir ou créer" /></div>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
-          <div>
-            <label style={labelStyle}>Finition</label>
-            <ComboInput value={form.finish} onChange={v => setForm(f => ({ ...f, finish: v }))}
-              options={existingFinishes} placeholder="Choisir ou créer" />
-          </div>
-          <div>
-            <label style={labelStyle}>Transparence</label>
-            <ComboInput value={form.transparency} onChange={v => setForm(f => ({ ...f, transparency: v }))}
-              options={existingTransparencies} placeholder="Choisir ou créer" />
-          </div>
+          <div><label style={labelStyle}>Finition</label>
+            <ComboInput value={form.finish} onChange={v => setForm(f => ({ ...f, finish: v }))} options={existingFinishes} placeholder="Choisir ou créer" /></div>
+          <div><label style={labelStyle}>Transparence</label>
+            <ComboInput value={form.transparency} onChange={v => setForm(f => ({ ...f, transparency: v }))} options={existingTransparencies} placeholder="Choisir ou créer" /></div>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
-          <div>
-            <label style={labelStyle}>Stock (cm²)</label>
-            <input style={inputStyle} type="number" min={0} value={form.stock} onChange={e => setForm(f => ({ ...f, stock: e.target.value }))} />
-          </div>
-          <div>
-            <label style={labelStyle}>Statut</label>
+          <div><label style={labelStyle}>Stock (cm²)</label>
+            <input style={inputStyle} type="number" min={0} value={form.stock} onChange={e => setForm(f => ({ ...f, stock: e.target.value }))} /></div>
+          <div><label style={labelStyle}>Statut</label>
             <select style={inputStyle} value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
               {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          </div>
+            </select></div>
         </div>
 
         <div style={{ marginBottom: 28 }}>
@@ -344,7 +325,7 @@ const AddMaterialModal = ({ onAdd, onClose, existingMaterials }) => {
         <button onClick={handleSubmit} disabled={loading} style={{
           width: "100%", padding: "14px", borderRadius: "12px", border: "none",
           background: loading ? "#B0B5C9" : "#6B8AF7", color: "#fff", fontSize: "15px",
-          fontWeight: 700, cursor: loading ? "wait" : "pointer", letterSpacing: "0.3px",
+          fontWeight: 700, cursor: loading ? "wait" : "pointer",
         }}>
           {loading ? "Envoi en cours..." : "Ajouter le matériau"}
         </button>
@@ -365,33 +346,49 @@ export default function App() {
   const [filterCategory, setFilterCategory] = useState("Tous");
   const [filterFinish, setFilterFinish] = useState("Tous");
   const [filterColor, setFilterColor] = useState("Tous");
+  const [filterTransparency, setFilterTransparency] = useState("Tous");
+  const [filterStock, setFilterStock] = useState("Tous");
+  const [sortOrder, setSortOrder] = useState("recent");
 
-  /* Load materials from Supabase */
   useEffect(() => {
     async function load() {
       const { data, error } = await supabase
-        .from("materials")
-        .select("*")
-        .order("created_at", { ascending: true });
+        .from("materials").select("*").order("created_at", { ascending: true });
       if (!error && data) setMaterials(data);
       setLoading(false);
     }
     load();
   }, []);
 
-  /* Dynamic filters */
+  /* Dynamic filter options */
   const categories = ["Tous", ...new Set(materials.map(m => m.category).filter(Boolean))];
   const finishes = ["Tous", ...new Set(materials.map(m => m.finish).filter(Boolean))];
   const colors = ["Tous", ...new Set(materials.map(m => m.color).filter(Boolean))];
+  const transparencies = ["Tous", ...new Set(materials.map(m => m.transparency).filter(Boolean))];
+  const stockStatuses = [
+    { value: "Tous", label: "Tous" },
+    { value: "dispo", label: "En stock" },
+    { value: "limite", label: "Limité" },
+    { value: "rupture", label: "Rupture" },
+  ];
 
-  const filtered = materials.filter(m => {
-    const s = search.toLowerCase();
-    const matchS = m.name.toLowerCase().includes(s) || m.category.toLowerCase().includes(s) || (m.color && m.color.toLowerCase().includes(s));
-    const matchC = filterCategory === "Tous" || m.category === filterCategory;
-    const matchF = filterFinish === "Tous" || m.finish === filterFinish;
-    const matchCo = filterColor === "Tous" || m.color === filterColor;
-    return matchS && matchC && matchF && matchCo;
-  });
+  /* Filter + Sort */
+  const filtered = materials
+    .filter(m => {
+      const s = search.toLowerCase();
+      const matchS = m.name.toLowerCase().includes(s) || m.category.toLowerCase().includes(s) || (m.color && m.color.toLowerCase().includes(s));
+      const matchC = filterCategory === "Tous" || m.category === filterCategory;
+      const matchF = filterFinish === "Tous" || m.finish === filterFinish;
+      const matchCo = filterColor === "Tous" || m.color === filterColor;
+      const matchT = filterTransparency === "Tous" || m.transparency === filterTransparency;
+      const matchSt = filterStock === "Tous" || m.status === filterStock;
+      return matchS && matchC && matchF && matchCo && matchT && matchSt;
+    })
+    .sort((a, b) => {
+      if (sortOrder === "recent") return new Date(b.created_at) - new Date(a.created_at);
+      if (sortOrder === "ancien") return new Date(a.created_at) - new Date(b.created_at);
+      return 0;
+    });
 
   const handleLogin = () => {
     if (password === ADMIN_PASSWORD) { setIsAdmin(true); setShowLogin(false); setPassword(""); }
@@ -402,23 +399,11 @@ export default function App() {
     if (!error) setMaterials(prev => prev.filter(x => x.id !== id));
   };
 
-  const FilterPill = ({ label, active, onClick }) => (
-    <button onClick={onClick} style={{
-      padding: "6px 16px", borderRadius: "20px",
-      border: active ? "1.5px solid #6B8AF7" : "1.5px solid rgba(30,34,53,0.1)",
-      background: active ? "rgba(107,138,247,0.08)" : "transparent",
-      color: active ? "#6B8AF7" : "#8A8FA8",
-      fontSize: "13px", fontWeight: active ? 600 : 500, cursor: "pointer",
-      transition: "all 0.2s", whiteSpace: "nowrap",
-    }}>{label}</button>
-  );
-
   if (loading) {
     return (
       <div style={{
         minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
-        background: "linear-gradient(180deg, #F5F7FF 0%, #ECEEF8 100%)",
-        fontFamily: "'Outfit', system-ui, sans-serif",
+        background: "#F5FEFF", fontFamily: "'Outfit', system-ui, sans-serif",
       }}>
         <div style={{ textAlign: "center", color: "#8A8FA8" }}>
           <div style={{ fontSize: "28px", marginBottom: 12 }}>⏳</div>
@@ -430,11 +415,10 @@ export default function App() {
 
   return (
     <div style={{
-      minHeight: "100vh",
-      background: "linear-gradient(180deg, #F5F7FF 0%, #ECEEF8 100%)",
+      minHeight: "100vh", background: "#F5FEFF",
       fontFamily: "'Outfit', 'DM Sans', system-ui, sans-serif",
     }}>
-      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "40px 32px 60px" }}>
+      <div style={{ padding: "40px 32px 60px" }}>
 
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 32 }}>
@@ -521,35 +505,68 @@ export default function App() {
         </div>
 
         {/* Filters */}
-        <div style={{ display: "flex", gap: 24, marginBottom: 32, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 20, marginBottom: 32, flexWrap: "wrap", alignItems: "center" }}>
+
+          {/* Sort */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: "12px", fontWeight: 600, color: "#8A8FA8", textTransform: "uppercase", letterSpacing: "0.5px" }}>Tri</span>
+            <div style={{ display: "flex", gap: 4 }}>
+              <FilterPill label="Récent" active={sortOrder === "recent"} onClick={() => setSortOrder("recent")} />
+              <FilterPill label="Ancien" active={sortOrder === "ancien"} onClick={() => setSortOrder("ancien")} />
+            </div>
+          </div>
+
+          {/* Stock status */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: "12px", fontWeight: 600, color: "#8A8FA8", textTransform: "uppercase", letterSpacing: "0.5px" }}>Stock</span>
+            <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+              {stockStatuses.map(s => <FilterPill key={s.value} label={s.label} active={filterStock === s.value} onClick={() => setFilterStock(s.value)} />)}
+            </div>
+          </div>
+
+          {/* Category */}
           {categories.length > 1 && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{ fontSize: "12px", fontWeight: 600, color: "#8A8FA8", textTransform: "uppercase", letterSpacing: "0.5px" }}>Matériau</span>
               <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                 {categories.map(c => <FilterPill key={c} label={c} active={filterCategory === c} onClick={() => setFilterCategory(c)} />)}
               </div>
             </div>
           )}
-          {finishes.length > 1 && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              <span style={{ fontSize: "12px", fontWeight: 600, color: "#8A8FA8", textTransform: "uppercase", letterSpacing: "0.5px" }}>Finition</span>
-              <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                {finishes.map(f => <FilterPill key={f} label={f} active={filterFinish === f} onClick={() => setFilterFinish(f)} />)}
-              </div>
-            </div>
-          )}
+
+          {/* Color */}
           {colors.length > 1 && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span style={{ fontSize: "12px", fontWeight: 600, color: "#8A8FA8", textTransform: "uppercase", letterSpacing: "0.5px" }}>Coloris</span>
               <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                 {colors.map(c => <FilterPill key={c} label={c} active={filterColor === c} onClick={() => setFilterColor(c)} />)}
               </div>
             </div>
           )}
+
+          {/* Finish */}
+          {finishes.length > 1 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: "12px", fontWeight: 600, color: "#8A8FA8", textTransform: "uppercase", letterSpacing: "0.5px" }}>Finition</span>
+              <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                {finishes.map(f => <FilterPill key={f} label={f} active={filterFinish === f} onClick={() => setFilterFinish(f)} />)}
+              </div>
+            </div>
+          )}
+
+          {/* Transparency */}
+          {transparencies.length > 1 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: "12px", fontWeight: 600, color: "#8A8FA8", textTransform: "uppercase", letterSpacing: "0.5px" }}>Transparence</span>
+              <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                {transparencies.map(t => <FilterPill key={t} label={t} active={filterTransparency === t} onClick={() => setFilterTransparency(t)} />)}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Grid */}
-        {materials.length === 0 && !loading ? (
+        {materials.length === 0 ? (
           <div style={{ textAlign: "center", padding: "80px 0", color: "#8A8FA8" }}>
             <div style={{ fontSize: "40px", marginBottom: 16 }}>📦</div>
             <div style={{ fontSize: "18px", fontWeight: 600, marginBottom: 6 }}>Aucun matériau pour l'instant</div>
@@ -558,7 +575,7 @@ export default function App() {
         ) : filtered.length === 0 ? (
           <div style={{ textAlign: "center", padding: "60px 0", color: "#8A8FA8", fontSize: "16px" }}>Aucun matériau trouvé</div>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 24 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 24 }}>
             {filtered.map(m => (
               <MaterialCard key={m.id} material={m} isAdmin={isAdmin} onDelete={handleDelete} />
             ))}

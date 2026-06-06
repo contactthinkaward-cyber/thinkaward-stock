@@ -9,6 +9,12 @@ const STATUS_OPTIONS = [
   { value: "rupture", label: "Rupture" },
 ];
 
+const SORT_OPTIONS = [
+  { value: "recent", label: "Récent", icon: "🕐" },
+  { value: "enstock", label: "En stock", icon: "📦" },
+  { value: "couleurs", label: "Couleurs", icon: "🎨" },
+];
+
 async function uploadImage(file) {
   const ext = file.name.split(".").pop();
   const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
@@ -54,8 +60,22 @@ const FilterPill = ({ label, active, onClick }) => (
   }}>{label}</button>
 );
 
+const SortPill = ({ label, icon, active, onClick }) => (
+  <button onClick={onClick} style={{
+    display: "flex", alignItems: "center", gap: 5,
+    padding: "6px 14px", borderRadius: "20px",
+    border: active ? "1.5px solid #6B8AF7" : "1.5px solid rgba(30,34,53,0.1)",
+    background: active ? "rgba(107,138,247,0.08)" : "transparent",
+    color: active ? "#6B8AF7" : "#8A8FA8",
+    fontSize: "13px", fontWeight: active ? 600 : 500, cursor: "pointer",
+    transition: "all 0.2s", whiteSpace: "nowrap",
+  }}>
+    <span style={{ fontSize: "14px" }}>{icon}</span> {label}
+  </button>
+);
+
 /* ───── Material Card ───── */
-const MaterialCard = ({ material, isAdmin, onDelete }) => {
+const MaterialCard = ({ material, isAdmin, onDelete, onEdit }) => {
   const [hovered, setHovered] = useState(false);
   const hasHover = material.image_hover && material.image_hover !== "";
   const formatStock = (s) => s >= 10000 ? `${(s / 10000).toFixed(1)}m²` : `${s}cm²`;
@@ -73,13 +93,20 @@ const MaterialCard = ({ material, isAdmin, onDelete }) => {
       }}
     >
       {isAdmin && (
-        <button onClick={() => { if (confirm("Supprimer ce matériau ?")) onDelete(material.id); }}
-          style={{
-            position: "absolute", top: 12, right: 12, zIndex: 10,
-            width: 32, height: 32, borderRadius: "50%", border: "none",
-            background: "rgba(231,76,60,0.9)", color: "#fff", fontSize: "14px",
-            cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-          }}>✕</button>
+        <div style={{ position: "absolute", top: 12, right: 12, zIndex: 10, display: "flex", gap: 6 }}>
+          <button onClick={() => onEdit(material)}
+            style={{
+              width: 32, height: 32, borderRadius: "50%", border: "none",
+              background: "rgba(107,138,247,0.9)", color: "#fff", fontSize: "14px",
+              cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+            }}>✎</button>
+          <button onClick={() => { if (confirm("Supprimer ce matériau ?")) onDelete(material.id); }}
+            style={{
+              width: 32, height: 32, borderRadius: "50%", border: "none",
+              background: "rgba(231,76,60,0.9)", color: "#fff", fontSize: "14px",
+              cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+            }}>✕</button>
+        </div>
       )}
 
       <div style={{ width: "100%", aspectRatio: "1", overflow: "hidden", position: "relative" }}>
@@ -143,6 +170,8 @@ const ComboInput = ({ value, onChange, options, placeholder }) => {
   const [inputVal, setInputVal] = useState(value);
   const filtered = options.filter(o => o.toLowerCase().includes(inputVal.toLowerCase()));
 
+  useEffect(() => { setInputVal(value); }, [value]);
+
   const handleSelect = (v) => { setInputVal(v); onChange(v); setOpen(false); };
   const handleChange = (e) => { setInputVal(e.target.value); onChange(e.target.value); setOpen(true); };
 
@@ -180,8 +209,9 @@ const ComboInput = ({ value, onChange, options, placeholder }) => {
   );
 };
 
-/* ───── Add Material Modal ───── */
-const AddMaterialModal = ({ onAdd, onClose, existingMaterials }) => {
+/* ───── Material Modal (Add + Edit) ───── */
+const MaterialModal = ({ onSave, onClose, existingMaterials, editingMaterial }) => {
+  const isEdit = !!editingMaterial;
   const [form, setForm] = useState({
     name: "", category: "", finish: "", transparency: "",
     color: "", stock: 0, status: "dispo", supplier_url: "",
@@ -193,6 +223,23 @@ const AddMaterialModal = ({ onAdd, onClose, existingMaterials }) => {
   const [loading, setLoading] = useState(false);
   const fileRef = useRef();
   const fileHoverRef = useRef();
+
+  useEffect(() => {
+    if (editingMaterial) {
+      setForm({
+        name: editingMaterial.name || "",
+        category: editingMaterial.category || "",
+        finish: editingMaterial.finish || "",
+        transparency: editingMaterial.transparency || "",
+        color: editingMaterial.color || "",
+        stock: editingMaterial.stock || 0,
+        status: editingMaterial.status || "dispo",
+        supplier_url: editingMaterial.supplier_url || "",
+      });
+      setImagePreview(editingMaterial.image || "");
+      setImageHoverPreview(editingMaterial.image_hover || "");
+    }
+  }, [editingMaterial]);
 
   const handleFile = (setter, previewSetter) => (e) => {
     const file = e.target.files[0];
@@ -217,21 +264,34 @@ const AddMaterialModal = ({ onAdd, onClose, existingMaterials }) => {
 
   const handleSubmit = async () => {
     if (!form.name) return alert("Le nom est obligatoire");
-    if (!imageFile) return alert("La photo principale est obligatoire");
+    if (!isEdit && !imageFile) return alert("La photo principale est obligatoire");
     if (!form.category) return alert("La catégorie est obligatoire");
     setLoading(true);
     try {
-      const imageUrl = await uploadImage(imageFile);
-      let imageHoverUrl = "";
+      let imageUrl = isEdit ? editingMaterial.image : "";
+      let imageHoverUrl = isEdit ? (editingMaterial.image_hover || "") : "";
+
+      if (imageFile) imageUrl = await uploadImage(imageFile);
       if (imageHoverFile) imageHoverUrl = await uploadImage(imageHoverFile);
-      const { data, error } = await supabase.from("materials").insert({
+
+      const payload = {
         name: form.name, image: imageUrl, image_hover: imageHoverUrl,
         category: form.category, finish: form.finish, transparency: form.transparency,
         color: form.color, stock: Number(form.stock), status: form.status,
         supplier_url: form.supplier_url,
-      }).select().single();
-      if (error) throw error;
-      onAdd(data);
+      };
+
+      if (isEdit) {
+        const { data, error } = await supabase.from("materials")
+          .update(payload).eq("id", editingMaterial.id).select().single();
+        if (error) throw error;
+        onSave(data, true);
+      } else {
+        const { data, error } = await supabase.from("materials")
+          .insert(payload).select().single();
+        if (error) throw error;
+        onSave(data, false);
+      }
       onClose();
     } catch (err) { alert("Erreur : " + err.message); }
     finally { setLoading(false); }
@@ -270,7 +330,7 @@ const AddMaterialModal = ({ onAdd, onClose, existingMaterials }) => {
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 28 }}>
           <h2 style={{ margin: 0, fontSize: "22px", fontWeight: 800, color: "#1E2235" }}>
-            Nouveau matériau<span style={{ color: "#6B8AF7" }}>.</span>
+            {isEdit ? "Modifier" : "Nouveau matériau"}<span style={{ color: "#6B8AF7" }}>.</span>
           </h2>
           <button onClick={onClose} style={{
             width: 36, height: 36, borderRadius: "10px", border: "1.5px solid rgba(30,34,53,0.08)",
@@ -282,7 +342,7 @@ const AddMaterialModal = ({ onAdd, onClose, existingMaterials }) => {
         <div style={{ marginBottom: 20 }}>
           <label style={labelStyle}>Photos</label>
           <div style={{ display: "flex", gap: 12 }}>
-            <ImageUpload preview={imagePreview} onClick={() => fileRef.current?.click()} label="Photo principale *" sub="Obligatoire" />
+            <ImageUpload preview={imagePreview} onClick={() => fileRef.current?.click()} label="Photo principale *" sub={isEdit ? "Cliquer pour changer" : "Obligatoire"} />
             <ImageUpload preview={imageHoverPreview} onClick={() => fileHoverRef.current?.click()} label="Photo au survol" sub="Optionnelle" />
           </div>
           <input ref={fileRef} type="file" accept="image/*" onChange={handleFile(setImageFile, setImagePreview)} style={{ display: "none" }} />
@@ -327,7 +387,7 @@ const AddMaterialModal = ({ onAdd, onClose, existingMaterials }) => {
           background: loading ? "#B0B5C9" : "#6B8AF7", color: "#fff", fontSize: "15px",
           fontWeight: 700, cursor: loading ? "wait" : "pointer",
         }}>
-          {loading ? "Envoi en cours..." : "Ajouter le matériau"}
+          {loading ? "Envoi en cours..." : isEdit ? "Enregistrer les modifications" : "Ajouter le matériau"}
         </button>
       </div>
     </div>
@@ -340,15 +400,15 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
-  const [showAddModal, setShowAddModal] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [editingMaterial, setEditingMaterial] = useState(null);
   const [password, setPassword] = useState("");
   const [search, setSearch] = useState("");
-  const [filterCategory, setFilterCategory] = useState("Tous");
-  const [filterFinish, setFilterFinish] = useState("Tous");
-  const [filterColor, setFilterColor] = useState("Tous");
-  const [filterTransparency, setFilterTransparency] = useState("Tous");
-  const [filterStock, setFilterStock] = useState("Tous");
   const [sortOrder, setSortOrder] = useState("recent");
+  const [filterCategory, setFilterCategory] = useState("Tous");
+  const [filterColor, setFilterColor] = useState("Tous");
+  const [filterFinish, setFilterFinish] = useState("Tous");
+  const [filterTransparency, setFilterTransparency] = useState("Tous");
 
   useEffect(() => {
     async function load() {
@@ -360,33 +420,27 @@ export default function App() {
     load();
   }, []);
 
-  /* Dynamic filter options */
   const categories = ["Tous", ...new Set(materials.map(m => m.category).filter(Boolean))];
-  const finishes = ["Tous", ...new Set(materials.map(m => m.finish).filter(Boolean))];
   const colors = ["Tous", ...new Set(materials.map(m => m.color).filter(Boolean))];
+  const finishes = ["Tous", ...new Set(materials.map(m => m.finish).filter(Boolean))];
   const transparencies = ["Tous", ...new Set(materials.map(m => m.transparency).filter(Boolean))];
-  const stockStatuses = [
-    { value: "Tous", label: "Tous" },
-    { value: "dispo", label: "En stock" },
-    { value: "limite", label: "Limité" },
-    { value: "rupture", label: "Rupture" },
-  ];
 
-  /* Filter + Sort */
+  const statusPriority = { dispo: 0, limite: 1, rupture: 2 };
+
   const filtered = materials
     .filter(m => {
       const s = search.toLowerCase();
       const matchS = m.name.toLowerCase().includes(s) || m.category.toLowerCase().includes(s) || (m.color && m.color.toLowerCase().includes(s));
       const matchC = filterCategory === "Tous" || m.category === filterCategory;
-      const matchF = filterFinish === "Tous" || m.finish === filterFinish;
       const matchCo = filterColor === "Tous" || m.color === filterColor;
+      const matchF = filterFinish === "Tous" || m.finish === filterFinish;
       const matchT = filterTransparency === "Tous" || m.transparency === filterTransparency;
-      const matchSt = filterStock === "Tous" || m.status === filterStock;
-      return matchS && matchC && matchF && matchCo && matchT && matchSt;
+      return matchS && matchC && matchCo && matchF && matchT;
     })
     .sort((a, b) => {
       if (sortOrder === "recent") return new Date(b.created_at) - new Date(a.created_at);
-      if (sortOrder === "ancien") return new Date(a.created_at) - new Date(b.created_at);
+      if (sortOrder === "enstock") return (statusPriority[a.status] || 0) - (statusPriority[b.status] || 0);
+      if (sortOrder === "couleurs") return (a.color || "").localeCompare(b.color || "");
       return 0;
     });
 
@@ -398,6 +452,17 @@ export default function App() {
     const { error } = await supabase.from("materials").delete().eq("id", id);
     if (!error) setMaterials(prev => prev.filter(x => x.id !== id));
   };
+
+  const handleSave = (data, isEdit) => {
+    if (isEdit) {
+      setMaterials(prev => prev.map(m => m.id === data.id ? data : m));
+    } else {
+      setMaterials(prev => [...prev, data]);
+    }
+  };
+
+  const openAdd = () => { setEditingMaterial(null); setShowModal(true); };
+  const openEdit = (m) => { setEditingMaterial(m); setShowModal(true); };
 
   if (loading) {
     return (
@@ -432,7 +497,7 @@ export default function App() {
           </div>
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
             {isAdmin && (
-              <button onClick={() => setShowAddModal(true)} style={{
+              <button onClick={openAdd} style={{
                 display: "flex", alignItems: "center", gap: 6,
                 padding: "10px 20px", borderRadius: "12px", border: "none",
                 background: "#6B8AF7", color: "#fff", fontSize: "14px",
@@ -504,65 +569,72 @@ export default function App() {
             }} />
         </div>
 
-        {/* Filters */}
-        <div style={{ display: "flex", gap: 20, marginBottom: 32, flexWrap: "wrap", alignItems: "center" }}>
-
-          {/* Sort */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: "12px", fontWeight: 600, color: "#8A8FA8", textTransform: "uppercase", letterSpacing: "0.5px" }}>Tri</span>
-            <div style={{ display: "flex", gap: 4 }}>
-              <FilterPill label="Récent" active={sortOrder === "recent"} onClick={() => setSortOrder("recent")} />
-              <FilterPill label="Ancien" active={sortOrder === "ancien"} onClick={() => setSortOrder("ancien")} />
+        {/* Sort + Filters */}
+        <div style={{
+          background: "#fff", borderRadius: "14px", padding: "16px 20px",
+          boxShadow: "0 2px 12px rgba(30,34,53,0.03)",
+          border: "1.5px solid rgba(30,34,53,0.06)", marginBottom: 28,
+        }}>
+          {/* Sort row */}
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            marginBottom: 14, paddingBottom: 14,
+            borderBottom: "1px solid rgba(30,34,53,0.06)",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: "12px", fontWeight: 600, color: "#8A8FA8", textTransform: "uppercase", letterSpacing: "0.5px" }}>Trier par</span>
+              <div style={{ display: "flex", gap: 4 }}>
+                {SORT_OPTIONS.map(s => (
+                  <SortPill key={s.value} label={s.label} icon={s.icon} active={sortOrder === s.value} onClick={() => setSortOrder(s.value)} />
+                ))}
+              </div>
             </div>
+            <span style={{ fontSize: "13px", color: "#8A8FA8" }}>{filtered.length} matériau{filtered.length > 1 ? "x" : ""}</span>
           </div>
 
-          {/* Stock status */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: "12px", fontWeight: 600, color: "#8A8FA8", textTransform: "uppercase", letterSpacing: "0.5px" }}>Stock</span>
-            <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-              {stockStatuses.map(s => <FilterPill key={s.value} label={s.label} active={filterStock === s.value} onClick={() => setFilterStock(s.value)} />)}
-            </div>
-          </div>
+          {/* Filter row */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <span style={{ fontSize: "12px", fontWeight: 600, color: "#8A8FA8", textTransform: "uppercase", letterSpacing: "0.5px" }}>Filtrer</span>
 
-          {/* Category */}
-          {categories.length > 1 && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: "12px", fontWeight: 600, color: "#8A8FA8", textTransform: "uppercase", letterSpacing: "0.5px" }}>Matériau</span>
-              <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                {categories.map(c => <FilterPill key={c} label={c} active={filterCategory === c} onClick={() => setFilterCategory(c)} />)}
-              </div>
-            </div>
-          )}
+            {categories.length > 1 && (
+              <>
+                <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                  {categories.map(c => <FilterPill key={c} label={c} active={filterCategory === c} onClick={() => setFilterCategory(c)} />)}
+                </div>
+                {(colors.length > 1 || finishes.length > 1 || transparencies.length > 1) && (
+                  <div style={{ width: 1, height: 20, background: "rgba(30,34,53,0.1)", margin: "0 4px" }} />
+                )}
+              </>
+            )}
 
-          {/* Color */}
-          {colors.length > 1 && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: "12px", fontWeight: 600, color: "#8A8FA8", textTransform: "uppercase", letterSpacing: "0.5px" }}>Coloris</span>
-              <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                {colors.map(c => <FilterPill key={c} label={c} active={filterColor === c} onClick={() => setFilterColor(c)} />)}
-              </div>
-            </div>
-          )}
+            {colors.length > 1 && (
+              <>
+                <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                  {colors.map(c => <FilterPill key={c} label={c} active={filterColor === c} onClick={() => setFilterColor(c)} />)}
+                </div>
+                {(finishes.length > 1 || transparencies.length > 1) && (
+                  <div style={{ width: 1, height: 20, background: "rgba(30,34,53,0.1)", margin: "0 4px" }} />
+                )}
+              </>
+            )}
 
-          {/* Finish */}
-          {finishes.length > 1 && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: "12px", fontWeight: 600, color: "#8A8FA8", textTransform: "uppercase", letterSpacing: "0.5px" }}>Finition</span>
-              <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                {finishes.map(f => <FilterPill key={f} label={f} active={filterFinish === f} onClick={() => setFilterFinish(f)} />)}
-              </div>
-            </div>
-          )}
+            {finishes.length > 1 && (
+              <>
+                <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                  {finishes.map(f => <FilterPill key={f} label={f} active={filterFinish === f} onClick={() => setFilterFinish(f)} />)}
+                </div>
+                {transparencies.length > 1 && (
+                  <div style={{ width: 1, height: 20, background: "rgba(30,34,53,0.1)", margin: "0 4px" }} />
+                )}
+              </>
+            )}
 
-          {/* Transparency */}
-          {transparencies.length > 1 && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: "12px", fontWeight: 600, color: "#8A8FA8", textTransform: "uppercase", letterSpacing: "0.5px" }}>Transparence</span>
+            {transparencies.length > 1 && (
               <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                 {transparencies.map(t => <FilterPill key={t} label={t} active={filterTransparency === t} onClick={() => setFilterTransparency(t)} />)}
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {/* Grid */}
@@ -577,7 +649,7 @@ export default function App() {
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 24 }}>
             {filtered.map(m => (
-              <MaterialCard key={m.id} material={m} isAdmin={isAdmin} onDelete={handleDelete} />
+              <MaterialCard key={m.id} material={m} isAdmin={isAdmin} onDelete={handleDelete} onEdit={openEdit} />
             ))}
           </div>
         )}
@@ -592,11 +664,12 @@ export default function App() {
         }}>● Mode admin actif</div>
       )}
 
-      {showAddModal && (
-        <AddMaterialModal
+      {showModal && (
+        <MaterialModal
           existingMaterials={materials}
-          onAdd={m => setMaterials(prev => [...prev, m])}
-          onClose={() => setShowAddModal(false)}
+          editingMaterial={editingMaterial}
+          onSave={handleSave}
+          onClose={() => { setShowModal(false); setEditingMaterial(null); }}
         />
       )}
     </div>
